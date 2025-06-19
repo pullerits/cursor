@@ -20,10 +20,8 @@ const DrawingCanvas = () => {
   const [chatUsername, setChatUsername] = useState('');
   const [chatShowPrompt, setChatShowPrompt] = useState(true);
   const [textToolActive, setTextToolActive] = useState(false);
-  const [textInput, setTextInput] = useState('');
-  const [textInputPos, setTextInputPos] = useState(null); // {x, y}
-  const [canvasTexts, setCanvasTexts] = useState([]); // [{x, y, text, color, fontSize, id}]
-  const [editingTextId, setEditingTextId] = useState(null);
+  const [canvasTexts, setCanvasTexts] = useState([]); // [{id, x, y, text, color, fontSize}]
+  const [editingText, setEditingText] = useState(null); // {id, x, y, text, color, fontSize} or null
 
   // =====================================
   // SOCKET.IO CONNECTION & CANVAS SETUP
@@ -231,43 +229,58 @@ const DrawingCanvas = () => {
     '#0f766e'  // Teal
   ];
 
-  // Add text to canvas
+  // Handle canvas click for placing new text
   const handleCanvasClick = (e) => {
     if (!textToolActive) return;
+    // If editing, ignore new clicks
+    if (editingText) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    setTextInput('');
-    setTextInputPos({ x, y });
-    setEditingTextId(null);
+    setEditingText({
+      id: Date.now(),
+      x,
+      y,
+      text: '',
+      color: currentColor,
+      fontSize: 20
+    });
   };
 
-  // Place or edit text
+  // Handle clicking an existing text to edit
+  const handleTextClick = (t) => {
+    if (!textToolActive) return;
+    setEditingText({ ...t });
+  };
+
+  // Handle input change
+  const handleTextInputChange = (e) => {
+    setEditingText(editingText ? { ...editingText, text: e.target.value } : null);
+  };
+
+  // Handle input keydown (Enter to save, Escape to cancel)
   const handleTextInputKeyDown = (e) => {
-    if (e.key === 'Enter' && textInput.trim()) {
-      if (editingTextId) {
-        setCanvasTexts(texts => texts.map(t => t.id === editingTextId ? { ...t, text: textInput } : t));
-      } else {
-        setCanvasTexts(texts => [
-          ...texts,
-          { x: textInputPos.x, y: textInputPos.y, text: textInput, color: currentColor, fontSize: 20, id: Date.now() }
-        ]);
-      }
-      setTextInput('');
-      setTextInputPos(null);
-      setEditingTextId(null);
+    if (!editingText) return;
+    if (e.key === 'Enter' && editingText.text.trim() !== '') {
+      setCanvasTexts(texts => {
+        const exists = texts.some(t => t.id === editingText.id);
+        if (exists) {
+          // Update existing
+          return texts.map(t => t.id === editingText.id ? { ...editingText } : t);
+        } else {
+          // Add new
+          return [...texts, { ...editingText }];
+        }
+      });
+      setEditingText(null);
     } else if (e.key === 'Escape') {
-      setTextInput('');
-      setTextInputPos(null);
-      setEditingTextId(null);
+      setEditingText(null);
     }
   };
 
-  // Edit existing text
-  const handleTextClick = (text) => {
-    setTextInput(text.text);
-    setTextInputPos({ x: text.x, y: text.y });
-    setEditingTextId(text.id);
+  // Handle input blur (cancel editing)
+  const handleTextInputBlur = () => {
+    setEditingText(null);
   };
 
   // Draw texts on canvas
@@ -276,13 +289,15 @@ const DrawingCanvas = () => {
     const ctx = canvas.getContext('2d');
     // Redraw all texts
     canvasTexts.forEach(t => {
+      // If overlays are shown, skip drawing on canvas
+      if (textToolActive && !editingText) return;
       ctx.save();
       ctx.font = `${t.fontSize || 20}px sans-serif`;
       ctx.fillStyle = t.color || '#1e293b';
       ctx.fillText(t.text, t.x, t.y);
       ctx.restore();
     });
-  }, [canvasTexts]);
+  }, [canvasTexts, textToolActive, editingText]);
 
   // =====================================
   // RENDER COMPONENT UI
@@ -408,56 +423,51 @@ const DrawingCanvas = () => {
             onMouseUp={stopDrawing}
             onMouseLeave={stopDrawing}
           />
-          {/* Render text input overlay */}
-          {textInputPos && (
-            <input
-              type="text"
-              value={textInput}
-              autoFocus
-              onChange={e => setTextInput(e.target.value)}
-              onKeyDown={handleTextInputKeyDown}
+          {/* Render overlays for all texts if text tool is active and not editing */}
+          { textToolActive && !editingText && canvasTexts.map(t => (
+            <div
+              key={t.id}
               style={{
                 position: 'absolute',
-                left: textInputPos.x,
-                top: textInputPos.y,
-                fontSize: 20,
+                left: t.x,
+                top: t.y - 20,
+                fontSize: t.fontSize,
+                color: t.color,
+                background: 'transparent',
+                cursor: 'pointer',
+                zIndex: 5,
+                pointerEvents: 'auto',
+                userSelect: 'none'
+              }}
+              onClick={e => { e.stopPropagation(); handleTextClick(t); }}
+            >
+              {t.text}
+            </div>
+          ))}
+          {/* Render input for editing text */}
+          { editingText && (
+            <input
+              type="text"
+              value={editingText.text}
+              autoFocus
+              style={{
+                position: 'absolute',
+                left: editingText.x,
+                top: editingText.y - 20,
+                fontSize: editingText.fontSize,
+                color: editingText.color,
                 zIndex: 10,
                 background: '#fff',
-                color: '#23272f',
-                border: '1px solid #2563eb',
+                border: '1px solid #888',
                 borderRadius: 4,
-                padding: '2px 8px',
-                outline: 'none',
-                minWidth: 80
+                padding: '2px 6px',
+                minWidth: 40
               }}
-              onBlur={() => { setTextInput(''); setTextInputPos(null); setEditingTextId(null); }}
+              onChange={handleTextInputChange}
+              onKeyDown={handleTextInputKeyDown}
+              onBlur={handleTextInputBlur}
             />
           )}
-          {/* Render clickable text overlays for editing */}
-          {canvasTexts.map(t => (
-            editingTextId === t.id ? null : (
-              textToolActive && (
-                <div
-                  key={t.id}
-                  style={{
-                    position: 'absolute',
-                    left: t.x,
-                    top: t.y - 20,
-                    fontSize: 20,
-                    color: t.color,
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    zIndex: 5,
-                    pointerEvents: 'auto',
-                    userSelect: 'none'
-                  }}
-                  onClick={e => { e.stopPropagation(); handleTextClick(t); }}
-                >
-                  {t.text}
-                </div>
-              )
-            )
-          ))}
         </div>
       </div>
       {/* ================================= */}
