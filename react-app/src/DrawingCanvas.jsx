@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import './DrawingCanvas.css';
+import ChatWindow from './ChatWindow';
 
 const DrawingCanvas = () => {
   // =====================================
@@ -12,6 +13,17 @@ const DrawingCanvas = () => {
   const [currentColor, setCurrentColor] = useState('#1e293b'); // Current selected color (professional default)
   const [brushSize, setBrushSize] = useState(3); // Current brush size (smaller default for precision)
   const [connectedUsers, setConnectedUsers] = useState(0); // Number of connected users
+  const [showChat, setShowChat] = useState(false);
+  // Chat state lifted up
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatUsername, setChatUsername] = useState('');
+  const [chatShowPrompt, setChatShowPrompt] = useState(true);
+  const [textToolActive, setTextToolActive] = useState(false);
+  const [textInput, setTextInput] = useState('');
+  const [textInputPos, setTextInputPos] = useState(null); // {x, y}
+  const [canvasTexts, setCanvasTexts] = useState([]); // [{x, y, text, color, fontSize, id}]
+  const [editingTextId, setEditingTextId] = useState(null);
 
   // =====================================
   // SOCKET.IO CONNECTION & CANVAS SETUP
@@ -219,11 +231,83 @@ const DrawingCanvas = () => {
     '#0f766e'  // Teal
   ];
 
+  // Add text to canvas
+  const handleCanvasClick = (e) => {
+    if (!textToolActive) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setTextInput('');
+    setTextInputPos({ x, y });
+    setEditingTextId(null);
+  };
+
+  // Place or edit text
+  const handleTextInputKeyDown = (e) => {
+    if (e.key === 'Enter' && textInput.trim()) {
+      if (editingTextId) {
+        setCanvasTexts(texts => texts.map(t => t.id === editingTextId ? { ...t, text: textInput } : t));
+      } else {
+        setCanvasTexts(texts => [
+          ...texts,
+          { x: textInputPos.x, y: textInputPos.y, text: textInput, color: currentColor, fontSize: 20, id: Date.now() }
+        ]);
+      }
+      setTextInput('');
+      setTextInputPos(null);
+      setEditingTextId(null);
+    } else if (e.key === 'Escape') {
+      setTextInput('');
+      setTextInputPos(null);
+      setEditingTextId(null);
+    }
+  };
+
+  // Edit existing text
+  const handleTextClick = (text) => {
+    setTextInput(text.text);
+    setTextInputPos({ x: text.x, y: text.y });
+    setEditingTextId(text.id);
+  };
+
+  // Draw texts on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    // Redraw all texts
+    canvasTexts.forEach(t => {
+      ctx.save();
+      ctx.font = `${t.fontSize || 20}px sans-serif`;
+      ctx.fillStyle = t.color || '#1e293b';
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    });
+  }, [canvasTexts]);
+
   // =====================================
   // RENDER COMPONENT UI
   // =====================================
   return (
-    <div className="drawing-container">
+    <div className="drawing-container" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      {/* Show/Hide Chat Button */}
+      <div style={{ position: 'fixed', top: 16, right: showChat ? 370 : 16, zIndex: 2100 }}>
+        <button
+          style={{
+            background: '#23272f',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 4,
+            padding: '8px 16px',
+            fontSize: 15,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            opacity: 0.85
+          }}
+          onClick={() => setShowChat((v) => !v)}
+        >
+          {showChat ? 'Hide Chat' : 'Show Chat'}
+        </button>
+      </div>
       {/* ================================= */}
       {/* TOOLBAR - Professional control panel */}
       {/* ================================= */}
@@ -238,7 +322,7 @@ const DrawingCanvas = () => {
         
         {/* BRUSH SIZE CONTROL SECTION */}
         <div className="tool-section brush-section">
-          <div className="tool-section-title">Drawing Tools</div>
+          <div className="tool-section-title" style={{ color: '#bbb' }}>Drawing Tools</div>
           <div className="brush-controls">
             <div className="brush-size-display">
               <span className="brush-size-label">Brush Size</span>
@@ -257,7 +341,7 @@ const DrawingCanvas = () => {
         
         {/* COLOR SELECTOR SECTION */}
         <div className="tool-section color-section">
-          <div className="tool-section-title">Color Palette</div>
+          <div className="tool-section-title" style={{ color: '#bbb' }}>Color Palette</div>
           <div className="color-palette">
             {colors.map(color => (
               <button
@@ -271,9 +355,21 @@ const DrawingCanvas = () => {
           </div>
         </div>
         
+        {/* TEXT TOOL SECTION */}
+        <div className="tool-section text-section">
+          <div className="tool-section-title" style={{ color: '#bbb' }}>Text Tool</div>
+          <button
+            className={textToolActive ? 'active' : ''}
+            style={{ margin: '8px 0', padding: '8px 16px', borderRadius: 4, border: '1px solid #444', background: textToolActive ? '#2563eb' : '#23272f', color: '#fff', cursor: 'pointer' }}
+            onClick={() => setTextToolActive(a => !a)}
+          >
+            {textToolActive ? 'Text Tool (Active)' : 'Text Tool'}
+          </button>
+        </div>
+        <hr style={{ border: 0, borderTop: '1px solid #fff', margin: '16px 0' }} />
         {/* ACTIONS SECTION */}
         <div className="tool-section actions-section">
-          <div className="tool-section-title">Actions</div>
+          <div className="tool-section-title" style={{ color: '#bbb' }}>Actions</div>
           <div className="action-buttons">
             <button className="save-btn" onClick={saveCanvas}>
               💾 Save Board
@@ -303,7 +399,7 @@ const DrawingCanvas = () => {
       {/* DRAWING CANVAS - Professional workspace */}
       {/* ================================= */}
       <div className="canvas-container">
-        <div className="canvas-wrapper">
+        <div className="canvas-wrapper" onClick={handleCanvasClick} style={{ position: 'relative' }}>
           <canvas
             ref={canvasRef}
             className="drawing-canvas"
@@ -312,11 +408,76 @@ const DrawingCanvas = () => {
             onMouseUp={stopDrawing}
             onMouseLeave={stopDrawing}
           />
-          <div className="canvas-overlay">
-            Brainstorming Session
-          </div>
+          {/* Render text input overlay */}
+          {textInputPos && (
+            <input
+              type="text"
+              value={textInput}
+              autoFocus
+              onChange={e => setTextInput(e.target.value)}
+              onKeyDown={handleTextInputKeyDown}
+              style={{
+                position: 'absolute',
+                left: textInputPos.x,
+                top: textInputPos.y,
+                fontSize: 20,
+                zIndex: 10,
+                background: '#fff',
+                color: '#23272f',
+                border: '1px solid #2563eb',
+                borderRadius: 4,
+                padding: '2px 8px',
+                outline: 'none',
+                minWidth: 80
+              }}
+              onBlur={() => { setTextInput(''); setTextInputPos(null); setEditingTextId(null); }}
+            />
+          )}
+          {/* Render clickable text overlays for editing */}
+          {canvasTexts.map(t => (
+            editingTextId === t.id ? null : (
+              textToolActive && (
+                <div
+                  key={t.id}
+                  style={{
+                    position: 'absolute',
+                    left: t.x,
+                    top: t.y - 20,
+                    fontSize: 20,
+                    color: t.color,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    zIndex: 5,
+                    pointerEvents: 'auto',
+                    userSelect: 'none'
+                  }}
+                  onClick={e => { e.stopPropagation(); handleTextClick(t); }}
+                >
+                  {t.text}
+                </div>
+              )
+            )
+          ))}
         </div>
       </div>
+      {/* ================================= */}
+      {/* CHAT WINDOW OVERLAY - Always in front */}
+      {/* ================================= */}
+      {showChat && (
+        <div style={{ position: 'fixed', top: 0, right: 0, zIndex: 2000, height: '100vh', pointerEvents: 'auto' }}>
+          <ChatWindow
+            input={chatInput}
+            setInput={setChatInput}
+            messages={chatMessages}
+            setMessages={setChatMessages}
+            username={chatUsername}
+            setUsername={setChatUsername}
+            showPrompt={chatShowPrompt}
+            setShowPrompt={setChatShowPrompt}
+            socket={socketRef.current}
+          />
+        </div>
+      )}
     </div>
   );
 };
