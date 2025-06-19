@@ -156,7 +156,7 @@ const DrawingCanvas = () => {
     link.click();
   };
 
-  // Professional color palette - business appropriate colors
+  // Professional color palette - business appropriate colors (max 12)
   const colors = [
     '#1e293b', // Slate Gray (default)
     '#dc2626', // Red
