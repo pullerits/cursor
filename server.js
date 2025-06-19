@@ -19,6 +19,7 @@ app.use(express.static('public'));
 let drawingData = [];
 let users = {};
 let guestCounter = 1;
+let canvasTexts = [];
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -35,6 +36,9 @@ io.on('connection', (socket) => {
   
   // Broadcast updated user list
   io.emit('user-list', Object.values(users));
+  
+  // Send current texts to new user
+  socket.emit('canvas-texts', canvasTexts);
   
   // Handle username update
   socket.on('set-username', (name) => {
@@ -64,6 +68,11 @@ io.on('connection', (socket) => {
     console.log('[Server] Received chat-message:', msg, 'from', socket.id);
     io.emit('chat-message', msg);
     console.log('[Server] Broadcasted chat-message to all clients');
+  });
+  
+  socket.on('canvas-texts', (texts) => {
+    canvasTexts = texts;
+    io.emit('canvas-texts', canvasTexts);
   });
   
   socket.on('disconnect', () => {

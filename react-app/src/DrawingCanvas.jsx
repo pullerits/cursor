@@ -21,7 +21,8 @@ const DrawingCanvas = () => {
   const [chatShowPrompt, setChatShowPrompt] = useState(true);
   const [textToolActive, setTextToolActive] = useState(false);
   const [canvasTexts, setCanvasTexts] = useState([]); // [{id, x, y, text, color, fontSize}]
-  const [editingText, setEditingText] = useState(null); // {id, x, y, text, color, fontSize} or null
+  const [textInput, setTextInput] = useState('');
+  const [textInputPos, setTextInputPos] = useState(null); // {x, y} or null
 
   // =====================================
   // SOCKET.IO CONNECTION & CANVAS SETUP
@@ -90,6 +91,17 @@ const DrawingCanvas = () => {
       context.clearRect(0, 0, canvas.width, canvas.height);
     });
     
+    // Handle chat messages from other users
+    socketRef.current.on('chat-message', (message) => {
+      console.log('💬 Received chat message:', message);
+      setChatMessages(prev => [...prev, message]);
+    });
+    
+    // Handle user count updates
+    socketRef.current.on('user-count', (count) => {
+      setConnectedUsers(count);
+    });
+    
     // Handle window resize to maintain canvas proportions
     const handleResize = () => {
       setCanvasSize();
@@ -100,7 +112,14 @@ const DrawingCanvas = () => {
     // Cleanup function
     return () => {
       console.log('🧹 Cleaning up Socket.IO connection');
-      socketRef.current.disconnect();
+      if (socketRef.current) {
+        socketRef.current.off('drawing-data');
+        socketRef.current.off('load-drawing');
+        socketRef.current.off('clear-canvas');
+        socketRef.current.off('chat-message');
+        socketRef.current.off('user-count');
+        socketRef.current.disconnect();
+      }
       window.removeEventListener('resize', handleResize);
     };
   }, []);
@@ -229,79 +248,53 @@ const DrawingCanvas = () => {
     '#0f766e'  // Teal
   ];
 
-  // Handle canvas click for placing new text
-  const handleCanvasClick = (e) => {
-    if (!textToolActive) return;
-    // If editing, ignore new clicks
-    if (editingText) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setEditingText({
-      id: Date.now(),
-      x,
-      y,
-      text: '',
-      color: currentColor,
-      fontSize: 20
-    });
-  };
-
-  // Handle clicking an existing text to edit
-  const handleTextClick = (t) => {
-    if (!textToolActive) return;
-    setEditingText({ ...t });
-  };
-
-  // Handle input change
-  const handleTextInputChange = (e) => {
-    setEditingText(editingText ? { ...editingText, text: e.target.value } : null);
-  };
-
-  // Handle input keydown (Enter to save, Escape to cancel)
-  const handleTextInputKeyDown = (e) => {
-    if (!editingText) return;
-    if (e.key === 'Enter' && editingText.text.trim() !== '') {
-      setCanvasTexts(texts => {
-        const exists = texts.some(t => t.id === editingText.id);
-        if (exists) {
-          // Update existing
-          return texts.map(t => t.id === editingText.id ? { ...editingText } : t);
-        } else {
-          // Add new
-          return [...texts, { ...editingText }];
-        }
-      });
-      setEditingText(null);
-    } else if (e.key === 'Escape') {
-      setEditingText(null);
-    }
-  };
-
-  // Handle input blur (cancel editing)
-  const handleTextInputBlur = () => {
-    setEditingText(null);
-  };
-
-  // Draw texts on canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    // Redraw all texts
-    canvasTexts.forEach(t => {
-      // If overlays are shown, skip drawing on canvas
-      if (textToolActive && !editingText) return;
-      ctx.save();
-      ctx.font = `${t.fontSize || 20}px sans-serif`;
-      ctx.fillStyle = t.color || '#1e293b';
-      ctx.fillText(t.text, t.x, t.y);
-      ctx.restore();
-    });
-  }, [canvasTexts, textToolActive, editingText]);
-
   // =====================================
   // RENDER COMPONENT UI
   // =====================================
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw all texts on the canvas
+    canvasTexts.forEach(t => {
+      ctx.save();
+      ctx.font = `${t.fontSize || 20}px Arial, sans-serif`;
+      ctx.fillStyle = t.color || '#1e293b';
+      ctx.textBaseline = 'top'; // Ensure consistent text positioning
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    });
+  }, [canvasTexts]);
+
+  // When text tool is active and user clicks canvas, show input at click position
+  const handleCanvasClick = (e) => {
+    if (!textToolActive) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    setTextInputPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setTextInput('');
+  };
+
+  // Handle placing new text
+  const handleTextInputKeyDown = (e) => {
+    if (e.key === 'Enter' && textInput.trim() !== '' && textInputPos) {
+      const newText = {
+        id: Date.now(),
+        x: textInputPos.x,
+        y: textInputPos.y,
+        text: textInput,
+        color: currentColor,
+        fontSize: 20
+      };
+      setCanvasTexts(texts => [...texts, newText]);
+      setTextInput('');
+      setTextInputPos(null);
+    } else if (e.key === 'Escape') {
+      setTextInput('');
+      setTextInputPos(null);
+    }
+  };
+
   return (
     <div className="drawing-container" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       {/* Show/Hide Chat Button */}
@@ -414,7 +407,7 @@ const DrawingCanvas = () => {
       {/* DRAWING CANVAS - Professional workspace */}
       {/* ================================= */}
       <div className="canvas-container">
-        <div className="canvas-wrapper" onClick={handleCanvasClick} style={{ position: 'relative' }}>
+        <div className="canvas-wrapper" style={{ position: 'relative' }}>
           <canvas
             ref={canvasRef}
             className="drawing-canvas"
@@ -422,50 +415,32 @@ const DrawingCanvas = () => {
             onMouseMove={draw}
             onMouseUp={stopDrawing}
             onMouseLeave={stopDrawing}
+            onClick={handleCanvasClick}
           />
-          {/* Render overlays for all texts if text tool is active and not editing */}
-          { textToolActive && !editingText && canvasTexts.map(t => (
-            <div
-              key={t.id}
-              style={{
-                position: 'absolute',
-                left: t.x,
-                top: t.y - 20,
-                fontSize: t.fontSize,
-                color: t.color,
-                background: 'transparent',
-                cursor: 'pointer',
-                zIndex: 5,
-                pointerEvents: 'auto',
-                userSelect: 'none'
-              }}
-              onClick={e => { e.stopPropagation(); handleTextClick(t); }}
-            >
-              {t.text}
-            </div>
-          ))}
-          {/* Render input for editing text */}
-          { editingText && (
+          {/* Render input for new text */}
+          { textInputPos && (
             <input
               type="text"
-              value={editingText.text}
+              value={textInput}
               autoFocus
               style={{
                 position: 'absolute',
-                left: editingText.x,
-                top: editingText.y - 20,
-                fontSize: editingText.fontSize,
-                color: editingText.color,
+                left: textInputPos.x,
+                top: textInputPos.y - 20,
+                fontSize: 20,
                 zIndex: 10,
-                background: '#fff',
-                border: '1px solid #888',
-                borderRadius: 4,
-                padding: '2px 6px',
-                minWidth: 40
+                background: 'white',
+                border: '2px solid #2563eb',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                outline: 'none',
+                minWidth: '100px'
               }}
-              onChange={handleTextInputChange}
+              onChange={e => setTextInput(e.target.value)}
               onKeyDown={handleTextInputKeyDown}
-              onBlur={handleTextInputBlur}
+              onBlur={() => { setTextInput(''); setTextInputPos(null); }}
+              placeholder="Enter text..."
             />
           )}
         </div>
