@@ -34,20 +34,49 @@ const DrawingCanvas = () => {
     setCanvasSize();
     
     // Initialize Socket.io connection to the server
-    socketRef.current = io('http://localhost:3001');
+    // Use current hostname to work for both local and network connections
+    const serverUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
+    console.log('🔌 Attempting to connect to Socket.IO server at:', serverUrl);
+    socketRef.current = io(serverUrl);
+    
+    // Connection event handlers
+    socketRef.current.on('connect', () => {
+      console.log('✅ Connected to Socket.IO server!');
+      console.log('🆔 Socket ID:', socketRef.current.id);
+    });
+    
+    socketRef.current.on('connect_error', (error) => {
+      console.error('❌ Socket.IO connection failed:', error.message);
+      console.log('💡 Make sure the server is running with: node server.js');
+    });
+    
+    socketRef.current.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from server:', reason);
+    });
     
     // Listen for drawing data from other users (real-time collaboration)
     socketRef.current.on('drawing-data', (data) => {
+      console.log('🎨 Received drawing data from another user:', {
+        color: data.color,
+        brushSize: data.brushSize,
+        from: `(${data.x0}, ${data.y0})`,
+        to: `(${data.x1}, ${data.y1})`
+      });
       drawLine(data);
     });
     
     // Load existing drawing data when a new user joins
     socketRef.current.on('load-drawing', (drawingData) => {
-      drawingData.forEach(data => drawLine(data));
+      console.log('📥 Loading existing drawing data:', drawingData.length, 'strokes');
+      drawingData.forEach((data, index) => {
+        console.log(`  Stroke ${index + 1}:`, data.color, `(${data.x0}, ${data.y0}) -> (${data.x1}, ${data.y1})`);
+        drawLine(data);
+      });
     });
     
     // Clear canvas when another user clears it
     socketRef.current.on('clear-canvas', () => {
+      console.log('🗑️ Canvas cleared by another user');
       context.clearRect(0, 0, canvas.width, canvas.height);
     });
     
@@ -60,6 +89,7 @@ const DrawingCanvas = () => {
     
     // Cleanup function
     return () => {
+      console.log('🧹 Cleaning up Socket.IO connection');
       socketRef.current.disconnect();
       window.removeEventListener('resize', handleResize);
     };
@@ -122,7 +152,17 @@ const DrawingCanvas = () => {
     drawLine(drawingData);
     
     // Send drawing data to server for other users to see
-    socketRef.current.emit('drawing-data', drawingData);
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('drawing-data', drawingData);
+      console.log('📤 Sent drawing data to server:', {
+        color: drawingData.color,
+        brushSize: drawingData.brushSize,
+        from: `(${drawingData.x0}, ${drawingData.y0})`,
+        to: `(${drawingData.x1}, ${drawingData.y1})`
+      });
+    } else {
+      console.log('⚠️ Socket not connected, drawing locally only');
+    }
     
     // Update last position for next drawing segment
     canvasRef.current.lastX = x;
@@ -140,11 +180,18 @@ const DrawingCanvas = () => {
   
   // Clear the entire canvas for all users
   const clearCanvas = () => {
+    console.log('🗑️ Clearing canvas locally');
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
+    
     // Notify other users to clear their canvas too
-    socketRef.current.emit('clear-canvas');
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('clear-canvas');
+      console.log('📤 Sent clear canvas request to server');
+    } else {
+      console.log('⚠️ Socket not connected, clearing locally only');
+    }
   };
 
   // Save canvas as image (professional feature)
