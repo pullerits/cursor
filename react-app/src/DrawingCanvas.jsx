@@ -9,8 +9,8 @@ const DrawingCanvas = () => {
   const canvasRef = useRef(null); // Reference to the HTML5 canvas element
   const socketRef = useRef(null); // Reference to the Socket.io connection
   const [isDrawing, setIsDrawing] = useState(false); // Track if user is currently drawing
-  const [currentColor, setCurrentColor] = useState('#000000'); // Current selected color
-  const [brushSize, setBrushSize] = useState(5); // Current brush size
+  const [currentColor, setCurrentColor] = useState('#1e293b'); // Current selected color (professional default)
+  const [brushSize, setBrushSize] = useState(3); // Current brush size (smaller default for precision)
   const [connectedUsers, setConnectedUsers] = useState(0); // Number of connected users
 
   // =====================================
@@ -25,9 +25,9 @@ const DrawingCanvas = () => {
       const container = canvas.parentElement;
       const containerRect = container.getBoundingClientRect();
       
-      // Set canvas size with some padding to prevent overflow
-      canvas.width = Math.max(300, containerRect.width - 40); // Min 300px width
-      canvas.height = Math.max(200, containerRect.height - 40); // Min 200px height
+      // Set canvas size with padding to prevent overflow
+      canvas.width = Math.max(400, containerRect.width - 40); // Min 400px width for professional use
+      canvas.height = Math.max(300, containerRect.height - 40); // Min 300px height
     };
     
     // Set initial canvas size
@@ -74,11 +74,12 @@ const DrawingCanvas = () => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     
-    // Set drawing properties
+    // Set drawing properties for professional appearance
     context.globalCompositeOperation = 'source-over';
     context.strokeStyle = data.color;
     context.lineWidth = data.brushSize;
-    context.lineCap = 'round'; // Smooth line endings
+    context.lineCap = 'round';
+    context.lineJoin = 'round'; // Smooth line joins
     
     // Draw the line from point A to point B
     context.beginPath();
@@ -146,10 +147,29 @@ const DrawingCanvas = () => {
     socketRef.current.emit('clear-canvas');
   };
 
-  // Color palette - array of available colors
+  // Save canvas as image (professional feature)
+  const saveCanvas = () => {
+    const canvas = canvasRef.current;
+    const link = document.createElement('a');
+    link.download = `brainstorm-session-${new Date().toISOString().split('T')[0]}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
+  };
+
+  // Professional color palette - business appropriate colors
   const colors = [
-    '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', 
-    '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#FFC0CB'
+    '#1e293b', // Slate Gray (default)
+    '#dc2626', // Red
+    '#059669', // Green
+    '#2563eb', // Blue
+    '#7c3aed', // Purple
+    '#ea580c', // Orange
+    '#0891b2', // Cyan
+    '#be123c', // Rose
+    '#4338ca', // Indigo
+    '#65a30d', // Lime
+    '#c2410c', // Orange Red
+    '#0f766e'  // Teal
   ];
 
   // =====================================
@@ -158,30 +178,39 @@ const DrawingCanvas = () => {
   return (
     <div className="drawing-container">
       {/* ================================= */}
-      {/* TOOLBAR - Left side control panel */}
+      {/* TOOLBAR - Professional control panel */}
       {/* ================================= */}
       <div className="toolbar">
-        {/* Application title */}
+        {/* Application header */}
         <div className="toolbar-header">
-          <h2>🎨 Collaborative Drawing</h2>
+          <h2>Team Brainstorming Board</h2>
+          <div className="toolbar-subtitle">
+            Collaborate in real-time with your team members
+          </div>
         </div>
         
         {/* BRUSH SIZE CONTROL SECTION */}
         <div className="tool-section brush-section">
-          <label>Brush Size: {brushSize}px</label>
-          <input
-            type="range"
-            min="1"
-            max="20"
-            value={brushSize}
-            onChange={(e) => setBrushSize(parseInt(e.target.value))}
-            className="brush-slider"
-          />
+          <div className="tool-section-title">Drawing Tools</div>
+          <div className="brush-controls">
+            <div className="brush-size-display">
+              <span className="brush-size-label">Brush Size</span>
+              <span className="brush-size-value">{brushSize}px</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="15"
+              value={brushSize}
+              onChange={(e) => setBrushSize(parseInt(e.target.value))}
+              className="brush-slider"
+            />
+          </div>
         </div>
         
         {/* COLOR SELECTOR SECTION */}
         <div className="tool-section color-section">
-          <label>Color Palette:</label>
+          <div className="tool-section-title">Color Palette</div>
           <div className="color-palette">
             {colors.map(color => (
               <button
@@ -195,35 +224,51 @@ const DrawingCanvas = () => {
           </div>
         </div>
         
-        {/* CLEAR CANVAS BUTTON SECTION */}
-        <div className="tool-section clear-section">
-          <button className="clear-btn" onClick={clearCanvas}>
-            🗑️ Clear Canvas
-          </button>
+        {/* ACTIONS SECTION */}
+        <div className="tool-section actions-section">
+          <div className="tool-section-title">Actions</div>
+          <div className="action-buttons">
+            <button className="save-btn" onClick={saveCanvas}>
+              💾 Save Board
+            </button>
+            <button className="clear-btn" onClick={clearCanvas}>
+              🗑️ Clear Board
+            </button>
+          </div>
         </div>
         
-        {/* STATUS & INSTRUCTIONS SECTION */}
-        <div className="tool-section status-section">
-          <div className="status">
-            <p>Status: Connected ✅</p>
-            <p>Click and drag to draw!</p>
-            <p>Other users will see your drawings in real-time</p>
+        {/* STATUS & COLLABORATION INFO SECTION */}
+        <div className="status-section">
+          <div className="connection-status">
+            <div className="status-indicator"></div>
+            <span className="status-text">Connected</span>
+          </div>
+          <div className="collaboration-info">
+            Real-time collaboration active. All team members can see changes instantly.
+          </div>
+          <div className="user-count">
+            Active collaborators: {connectedUsers || 1}
           </div>
         </div>
       </div>
       
       {/* ================================= */}
-      {/* DRAWING CANVAS - Main drawing area */}
+      {/* DRAWING CANVAS - Professional workspace */}
       {/* ================================= */}
       <div className="canvas-container">
-        <canvas
-          ref={canvasRef}
-          className="drawing-canvas"
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-        />
+        <div className="canvas-wrapper">
+          <canvas
+            ref={canvasRef}
+            className="drawing-canvas"
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+          />
+          <div className="canvas-overlay">
+            Brainstorming Session
+          </div>
+        </div>
       </div>
     </div>
   );
