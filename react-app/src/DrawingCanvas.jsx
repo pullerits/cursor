@@ -20,9 +20,18 @@ const DrawingCanvas = () => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     
-    // Set canvas size to fit the available space
-    canvas.width = window.innerWidth - 320; // Leave space for toolbar
-    canvas.height = window.innerHeight - 120; // Leave space for margins
+    // Calculate canvas size to fit within viewport without causing overflow
+    const setCanvasSize = () => {
+      const container = canvas.parentElement;
+      const containerRect = container.getBoundingClientRect();
+      
+      // Set canvas size with some padding to prevent overflow
+      canvas.width = Math.max(300, containerRect.width - 40); // Min 300px width
+      canvas.height = Math.max(200, containerRect.height - 40); // Min 200px height
+    };
+    
+    // Set initial canvas size
+    setCanvasSize();
     
     // Initialize Socket.io connection to the server
     socketRef.current = io('http://localhost:3001');
@@ -44,8 +53,7 @@ const DrawingCanvas = () => {
     
     // Handle window resize to maintain canvas proportions
     const handleResize = () => {
-      canvas.width = window.innerWidth - 320;
-      canvas.height = window.innerHeight - 120;
+      setCanvasSize();
     };
     
     window.addEventListener('resize', handleResize);

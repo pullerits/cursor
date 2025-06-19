@@ -1,54 +1,97 @@
+/* =====================================
+   CSS RESET & GLOBAL STYLES
+   ===================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevent scrollbars */
+  width: 100%;
+  height: 100%;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* =====================================
+   MAIN CONTAINER LAYOUT
+   ===================================== */
 .drawing-container {
   display: flex;
   height: 100vh;
   width: 100vw;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   font-family: 'Arial', sans-serif;
-  gap: 20px;
-  padding: 20px;
+  gap: 15px; /* Reduced gap to prevent overflow */
+  padding: 15px; /* Reduced padding */
+  box-sizing: border-box; /* Include padding in dimensions */
+  overflow: hidden; /* Prevent scrolling */
 }
 
+/* =====================================
+   TOOLBAR - Left side control panel
+   ===================================== */
 .toolbar {
-  width: 300px;
+  width: 280px; /* Fixed width */
+  min-width: 280px; /* Prevent shrinking */
+  max-width: 280px; /* Prevent growing */
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  padding: 25px;
+  padding: 20px; /* Reduced padding */
   box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
   border-radius: 20px;
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal scroll */
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 15px; /* Reduced gap */
+  box-sizing: border-box;
 }
 
+/* Application title header */
 .toolbar-header {
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 5px; /* Reduced margin */
 }
 
 .toolbar h2 {
   margin: 0;
   color: #333;
-  font-size: 24px;
+  font-size: 22px; /* Slightly smaller */
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+/* =====================================
+   TOOL SECTIONS - Individual control groups
+   ===================================== */
 .tool-section {
-  padding: 20px;
+  padding: 15px; /* Reduced padding */
   background: rgba(255, 255, 255, 0.7);
   border-radius: 15px;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  margin-bottom: 15px;
+  margin-bottom: 10px; /* Reduced margin */
+  box-sizing: border-box;
 }
 
 .tool-section label {
   display: block;
-  margin-bottom: 15px;
+  margin-bottom: 12px; /* Reduced margin */
   font-weight: bold;
   color: #555;
   font-size: 14px;
 }
 
+/* =====================================
+   BRUSH SIZE CONTROL SECTION
+   ===================================== */
 .brush-section {
   border-left: 4px solid #667eea;
 }
@@ -60,7 +103,7 @@
   background: linear-gradient(to right, #667eea, #764ba2);
   outline: none;
   cursor: pointer;
-  margin-top: 10px;
+  margin-top: 8px; /* Reduced margin */
 }
 
 .brush-slider::-webkit-slider-thumb {
@@ -74,6 +117,9 @@
   border: 3px solid #667eea;
 }
 
+/* =====================================
+   COLOR SELECTOR SECTION
+   ===================================== */
 .color-section {
   border-left: 4px solid #ff6b6b;
 }
@@ -81,16 +127,17 @@
 .color-palette {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-top: 15px;
-  padding: 10px;
+  gap: 10px; /* Reduced gap */
+  margin-top: 12px; /* Reduced margin */
+  padding: 8px; /* Reduced padding */
   background: rgba(255, 255, 255, 0.3);
   border-radius: 10px;
+  box-sizing: border-box;
 }
 
 .color-btn {
-  width: 40px;
-  height: 40px;
+  width: 35px; /* Slightly smaller */
+  height: 35px;
   border: 3px solid #fff;
   border-radius: 50%;
   cursor: pointer;
@@ -110,6 +157,9 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* =====================================
+   CLEAR CANVAS BUTTON SECTION
+   ===================================== */
 .clear-section {
   border-left: 4px solid #ff6b6b;
   text-align: center;
@@ -117,7 +167,7 @@
 
 .clear-btn {
   width: 100%;
-  padding: 15px;
+  padding: 12px; /* Reduced padding */
   background: linear-gradient(135deg, #ff6b6b, #ee5a52);
   color: white;
   border: none;
@@ -127,7 +177,8 @@
   font-weight: bold;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
-  margin-top: 10px;
+  margin-top: 8px; /* Reduced margin */
+  box-sizing: border-box;
 }
 
 .clear-btn:hover {
@@ -136,6 +187,9 @@
   box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
 }
 
+/* =====================================
+   STATUS & INSTRUCTIONS SECTION
+   ===================================== */
 .status-section {
   border-left: 4px solid #4caf50;
 }
@@ -144,90 +198,114 @@
   background: rgba(76, 175, 80, 0.1);
   border: 1px solid rgba(76, 175, 80, 0.3);
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px; /* Reduced padding */
   text-align: center;
-  margin-top: 10px;
+  margin-top: 8px; /* Reduced margin */
+  box-sizing: border-box;
 }
 
 .status p {
-  margin: 8px 0;
+  margin: 6px 0; /* Reduced margin */
   color: #2e7d32;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4; /* Reduced line height */
 }
 
 .status p:first-child {
   font-weight: bold;
   font-size: 14px;
-  margin-bottom: 12px;
+  margin-bottom: 10px; /* Reduced margin */
 }
 
+/* =====================================
+   DRAWING CANVAS - Main drawing area
+   ===================================== */
 .canvas-container {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 10px; /* Reduced padding */
+  box-sizing: border-box;
+  overflow: hidden; /* Prevent overflow */
+  min-width: 0; /* Allow flex shrinking */
 }
 
 .drawing-canvas {
   cursor: crosshair;
   background: white;
-  border-radius: 20px;
+  border-radius: 15px; /* Slightly reduced */
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-  border: 4px solid rgba(255, 255, 255, 0.8);
+  border: 3px solid rgba(255, 255, 255, 0.8); /* Thinner border */
   max-width: 100%;
   max-height: 100%;
+  box-sizing: border-box;
 }
 
 .drawing-canvas:active {
   cursor: crosshair;
 }
 
+/* =====================================
+   RESPONSIVE DESIGN
+   ===================================== */
 @media (max-width: 768px) {
   .drawing-container {
     flex-direction: column;
     padding: 10px;
-    gap: 15px;
+    gap: 10px;
+    height: 100vh;
+    overflow: hidden;
   }
   
   .toolbar {
     width: 100%;
+    min-width: unset;
+    max-width: unset;
     height: auto;
+    max-height: 40vh; /* Limit height on mobile */
     border-radius: 15px;
-    padding: 20px;
-    gap: 15px;
+    padding: 15px;
+    gap: 12px;
+    overflow-y: auto;
   }
   
   .toolbar h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
   
   .tool-section {
-    margin-bottom: 10px;
-    padding: 15px;
+    margin-bottom: 8px;
+    padding: 12px;
   }
   
   .color-palette {
     grid-template-columns: repeat(10, 1fr);
-    gap: 8px;
+    gap: 6px;
   }
   
   .color-btn {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
   
   .canvas-container {
-    padding: 10px;
+    padding: 5px;
+    flex: 1;
+    min-height: 0;
   }
   
   .drawing-canvas {
-    border-radius: 15px;
-    border-width: 3px;
+    border-radius: 12px;
+    border-width: 2px;
+    width: 100%;
+    height: 100%;
   }
 }
 
+/* =====================================
+   ACCESSIBILITY IMPROVEMENTS
+   ===================================== */
 .color-btn:focus {
   outline: 3px solid #333;
   outline-offset: 2px;
