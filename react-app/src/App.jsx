@@ -1,10 +1,12 @@
 import DrawingCanvas from './DrawingCanvas'
+import ChatWindow from './ChatWindow'
 import './App.css'
 
 function App() {
   return (
-    <div className="App">
+    <div className="main-flex-layout">
       <DrawingCanvas />
+      <ChatWindow />
     </div>
   )
 }
