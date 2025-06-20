@@ -1,11 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import './App.css';
 
-function ChatWindow() {
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [username, setUsername] = useState('');
-  const [showPrompt, setShowPrompt] = useState(true);
+function ChatWindow({ input, setInput, messages, setMessages, username, setUsername, showPrompt, setShowPrompt, socket }) {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -18,14 +14,17 @@ function ChatWindow() {
   const handleSend = (e) => {
     e.preventDefault();
     if (input.trim() === '' || !username) return;
-    setMessages([
-      ...messages,
-      {
-        user: username,
-        text: input,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+    const msg = {
+      user: username,
+      text: input,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    if (socket) {
+      console.log('[Chat] Emitting message to server:', msg);
+      socket.emit('chat-message', msg);
+    } else {
+      console.warn('Socket not available when sending message');
+    }
     setInput('');
   };
 

@@ -13,24 +13,25 @@ A real-time collaborative drawing application where multiple users can draw toge
 
 ## How to Run
 
-### 1. Start the Server (Terminal 1)
+### Local Development
+
+#### 1. Start the Server (Terminal 1)
 ```bash
 npm start
 ```
 
-### 2. Start the React App (Terminal 2)
+#### 2. Start the React App (Terminal 2)
 ```bash
 cd react-app
 npm run dev
 ```
 
-### 3. Open Your Browser
-
-Go to `http://localhost:5173` and start drawing!
+#### 3. Open Your Browser
+Go to `http://localhost:5174` and start drawing!
 
 ### 4. Test Collaboration
 
-Open multiple browser tabs or share the link with friends to see the real-time collaboration in action!
+Open multiple browser tabs to see the real-time collaboration in action!
 
 ## How It Works
 

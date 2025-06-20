@@ -384,16 +384,23 @@ html, body {
 /* Canvas overlay for professional touch */
 .canvas-overlay {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(4px);
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #64748b;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+}
+
+.text-input {
+  position: absolute;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 16px;
+  background: white;
+  color: #1e293b;
+  pointer-events: auto;
+  min-width: 200px;
 }
 
 /* =====================================
