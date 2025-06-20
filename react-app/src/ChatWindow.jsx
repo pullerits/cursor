@@ -5,21 +5,6 @@ function ChatWindow({ input, setInput, messages, setMessages, username, setUsern
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (!socket) {
-      console.warn('Socket not available in ChatWindow');
-      return;
-    }
-    const handleMessage = (msg) => {
-      console.log('[Chat] Received message from server:', msg);
-      setMessages((prev) => [...prev, msg]);
-    };
-    socket.on('chat-message', handleMessage);
-    return () => {
-      socket.off('chat-message', handleMessage);
-    };
-  }, [socket, setMessages]);
-
-  useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }

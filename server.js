@@ -37,8 +37,8 @@ io.on('connection', (socket) => {
   // Broadcast updated user list
   io.emit('user-list', Object.values(users));
   
-  // Send current texts to new user
-  socket.emit('canvas-texts', canvasTexts);
+  // Send current texts to the newly connected user
+  socket.emit('load-texts', canvasTexts);
   
   // Handle username update
   socket.on('set-username', (name) => {
@@ -70,9 +70,28 @@ io.on('connection', (socket) => {
     console.log('[Server] Broadcasted chat-message to all clients');
   });
   
+  // Handle text events
+  socket.on('add-text', (newText) => {
+    canvasTexts.push(newText);
+    socket.broadcast.emit('add-text', newText); // Broadcast to others
+  });
+
+  socket.on('update-text', (updatedText) => {
+    canvasTexts = canvasTexts.map(text =>
+      text.id === updatedText.id ? updatedText : text
+    );
+    socket.broadcast.emit('update-text', updatedText); // Broadcast to others
+  });
+
+  socket.on('delete-text', (textId) => {
+    canvasTexts = canvasTexts.filter(text => text.id !== textId);
+    socket.broadcast.emit('delete-text', textId); // Broadcast to others
+  });
+  
   socket.on('canvas-texts', (texts) => {
-    canvasTexts = texts;
-    io.emit('canvas-texts', canvasTexts);
+    // This is now primarily for a client to maybe force a sync if needed,
+    // but the main flow uses the granular events.
+    // We can even remove this if it's unused. For now, let's keep it simple.
   });
   
   socket.on('disconnect', () => {

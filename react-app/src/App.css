@@ -88,6 +88,8 @@
   border: none;
   font-size: 15px;
   margin-right: 8px;
+  color: #000;
+  background: #fff;
 }
 
 .chat-send-btn {

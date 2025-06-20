@@ -21,8 +21,11 @@ const DrawingCanvas = () => {
   const [chatShowPrompt, setChatShowPrompt] = useState(true);
   const [textToolActive, setTextToolActive] = useState(false);
   const [canvasTexts, setCanvasTexts] = useState([]); // [{id, x, y, text, color, fontSize}]
+  const [drawingLines, setDrawingLines] = useState([]); // Add state for storing lines
   const [textInput, setTextInput] = useState('');
   const [textInputPos, setTextInputPos] = useState(null); // {x, y} or null
+  const [editingTextId, setEditingTextId] = useState(null); // New state for tracking which text is being edited
+  const [unreadCount, setUnreadCount] = useState(0); // New state for unread messages
 
   // =====================================
   // SOCKET.IO CONNECTION & CANVAS SETUP
@@ -90,13 +93,21 @@ const DrawingCanvas = () => {
       console.log('🗑️ Canvas cleared by another user');
       context.clearRect(0, 0, canvas.width, canvas.height);
     });
-    
+
     // Handle chat messages from other users
     socketRef.current.on('chat-message', (message) => {
       console.log('💬 Received chat message:', message);
       setChatMessages(prev => [...prev, message]);
+      if (!showChat) {
+        setUnreadCount(prev => prev + 1);
+      }
     });
     
+    // Listen for text updates from the server
+    socketRef.current.on('canvas-texts', (receivedTexts) => {
+      setCanvasTexts(receivedTexts);
+    });
+
     // Handle user count updates
     socketRef.current.on('user-count', (count) => {
       setConnectedUsers(count);
@@ -109,6 +120,22 @@ const DrawingCanvas = () => {
     
     window.addEventListener('resize', handleResize);
     
+    // Load initial state from server
+    socketRef.current.on('load-texts', (loadedTexts) => {
+      setCanvasTexts(loadedTexts);
+    });
+
+    // Listen for granular text updates from other clients
+    socketRef.current.on('add-text', (newText) => {
+      setCanvasTexts(prev => [...prev, newText]);
+    });
+    socketRef.current.on('update-text', (updatedText) => {
+      setCanvasTexts(prev => prev.map(t => t.id === updatedText.id ? updatedText : t));
+    });
+    socketRef.current.on('delete-text', (textId) => {
+      setCanvasTexts(prev => prev.filter(t => t.id !== textId));
+    });
+
     // Cleanup function
     return () => {
       console.log('🧹 Cleaning up Socket.IO connection');
@@ -117,18 +144,38 @@ const DrawingCanvas = () => {
         socketRef.current.off('load-drawing');
         socketRef.current.off('clear-canvas');
         socketRef.current.off('chat-message');
+        socketRef.current.off('canvas-texts');
         socketRef.current.off('user-count');
+        socketRef.current.off('load-texts');
+        socketRef.current.off('add-text');
+        socketRef.current.off('update-text');
+        socketRef.current.off('delete-text');
         socketRef.current.disconnect();
       }
       window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [showChat]);
+
+  const textUpdateTimeout = useRef(null);
+  // New useEffect to send text updates to the server
+  useEffect(() => {
+    // Clear previous timeout
+    if (textUpdateTimeout.current) {
+      clearTimeout(textUpdateTimeout.current);
+    }
+    // Set a new timeout to send data after 250ms of inactivity
+    textUpdateTimeout.current = setTimeout(() => {
+      if (socketRef.current) {
+        socketRef.current.emit('canvas-texts', canvasTexts);
+      }
+    }, 250);
+  }, [canvasTexts]);
 
   // =====================================
   // DRAWING FUNCTIONS
   // =====================================
   
-  // Function to draw a line on the canvas
+  // Modified drawLine function to store the line
   const drawLine = (data) => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
@@ -138,13 +185,16 @@ const DrawingCanvas = () => {
     context.strokeStyle = data.color;
     context.lineWidth = data.brushSize;
     context.lineCap = 'round';
-    context.lineJoin = 'round'; // Smooth line joins
+    context.lineJoin = 'round';
     
-    // Draw the line from point A to point B
+    // Draw the line
     context.beginPath();
     context.moveTo(data.x0, data.y0);
     context.lineTo(data.x1, data.y1);
     context.stroke();
+
+    // Store the line data
+    setDrawingLines(lines => [...lines, data]);
   };
 
   // Start drawing when mouse is pressed down
@@ -207,12 +257,49 @@ const DrawingCanvas = () => {
   // UTILITY FUNCTIONS
   // =====================================
   
-  // Clear the entire canvas for all users
+  // Modified redrawCanvas function to handle both lines and text
+  const redrawCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear the canvas first
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Redraw all lines
+    drawingLines.forEach(line => {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = line.brushSize;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(line.x0, line.y0);
+      ctx.lineTo(line.x1, line.y1);
+      ctx.stroke();
+    });
+    
+    // Redraw all texts
+    canvasTexts.forEach(t => {
+      ctx.save();
+      ctx.font = `${t.fontSize || 20}px Arial, sans-serif`;
+      ctx.fillStyle = t.color || '#1e293b';
+      ctx.textBaseline = 'top';
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    });
+  };
+
+  // Modified clearCanvas function to clear both lines and text
   const clearCanvas = () => {
     console.log('🗑️ Clearing canvas locally');
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Clear stored lines and texts
+    setDrawingLines([]);
+    setCanvasTexts([]);
     
     // Notify other users to clear their canvas too
     if (socketRef.current && socketRef.current.connected) {
@@ -267,32 +354,95 @@ const DrawingCanvas = () => {
     });
   }, [canvasTexts]);
 
-  // When text tool is active and user clicks canvas, show input at click position
-  const handleCanvasClick = (e) => {
-    if (!textToolActive) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    setTextInputPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setTextInput('');
+  // Function to check if a point is near text
+  const findTextAtPoint = (x, y) => {
+    const ctx = canvasRef.current.getContext('2d');
+    return canvasTexts.find(text => {
+      ctx.font = `${text.fontSize || 20}px Arial, sans-serif`;
+      const metrics = ctx.measureText(text.text);
+      const textWidth = metrics.width;
+      const textHeight = text.fontSize || 20;
+      
+      return x >= text.x &&
+             x <= text.x + textWidth &&
+             y >= text.y &&
+             y <= text.y + textHeight;
+    });
   };
 
-  // Handle placing new text
+  // Modified handleCanvasClick to handle both new text and text editing
+  const handleCanvasClick = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Check if we clicked on existing text
+    const clickedText = findTextAtPoint(x, y);
+    
+    if (clickedText) {
+      // Start editing existing text
+      setTextInput(clickedText.text);
+      setTextInputPos({ x: clickedText.x, y: clickedText.y });
+      setEditingTextId(clickedText.id);
+    } else if (textToolActive) {
+      // Create new text
+      setTextInput('');
+      setTextInputPos({ x, y });
+      setEditingTextId(null);
+    }
+  };
+
+  // Add useEffect to redraw canvas when texts change
+  useEffect(() => {
+    redrawCanvas();
+  }, [canvasTexts]);
+
+  // Modified handleTextInputKeyDown to handle text deletion
   const handleTextInputKeyDown = (e) => {
-    if (e.key === 'Enter' && textInput.trim() !== '' && textInputPos) {
-      const newText = {
-        id: Date.now(),
-        x: textInputPos.x,
-        y: textInputPos.y,
-        text: textInput,
-        color: currentColor,
-        fontSize: 20
-      };
-      setCanvasTexts(texts => [...texts, newText]);
+    if (e.key === 'Enter' && textInputPos) {
+      if (editingTextId) {
+        if (textInput.trim() === '') {
+          // DELETE: Update locally and emit delete event
+          setCanvasTexts(texts => texts.filter(text => text.id !== editingTextId));
+          socketRef.current.emit('delete-text', editingTextId);
+        } else {
+          // UPDATE: Update locally and emit update event
+          const updatedText = { id: editingTextId, text: textInput };
+          setCanvasTexts(texts =>
+            texts.map(text => (text.id === editingTextId ? { ...text, ...updatedText } : text))
+          );
+          socketRef.current.emit('update-text', { ...canvasTexts.find(t => t.id === editingTextId), text: textInput });
+        }
+      } else if (textInput.trim() !== '') {
+        // ADD: Create new text, update locally, and emit add event
+        const newText = {
+          id: Date.now(),
+          x: textInputPos.x,
+          y: textInputPos.y,
+          text: textInput,
+          color: currentColor,
+          fontSize: 20
+        };
+        setCanvasTexts(texts => [...texts, newText]);
+        socketRef.current.emit('add-text', newText);
+      }
       setTextInput('');
       setTextInputPos(null);
+      setEditingTextId(null);
+      // No need to call redrawCanvas here, the state update will trigger it
     } else if (e.key === 'Escape') {
       setTextInput('');
       setTextInputPos(null);
+      setEditingTextId(null);
     }
+  };
+
+  // Modified function to handle showing chat and resetting unread count
+  const handleToggleChat = () => {
+    if (!showChat) {
+      setUnreadCount(0); // Reset count when opening chat
+    }
+    setShowChat(v => !v);
   };
 
   return (
@@ -309,11 +459,29 @@ const DrawingCanvas = () => {
             fontSize: 15,
             cursor: 'pointer',
             boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-            opacity: 0.85
+            opacity: 0.85,
+            position: 'relative' // Needed for positioning the bubble
           }}
-          onClick={() => setShowChat((v) => !v)}
+          onClick={handleToggleChat} // Use the new handler
         >
           {showChat ? 'Hide Chat' : 'Show Chat'}
+          {unreadCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-8px',
+              left: '-8px',
+              background: '#3b82f6',
+              color: 'white',
+              borderRadius: '50%',
+              padding: '2px 6px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              minWidth: '20px',
+              textAlign: 'center'
+            }}>
+              {unreadCount}
+            </span>
+          )}
         </button>
       </div>
       {/* ================================= */}
@@ -414,35 +582,25 @@ const DrawingCanvas = () => {
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
+            onMouseOut={stopDrawing}
             onClick={handleCanvasClick}
           />
-          {/* Render input for new text */}
-          { textInputPos && (
-            <input
-              type="text"
-              value={textInput}
-              autoFocus
-              style={{
-                position: 'absolute',
-                left: textInputPos.x,
-                top: textInputPos.y - 20,
-                fontSize: 20,
-                zIndex: 10,
-                background: 'white',
-                border: '2px solid #2563eb',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                outline: 'none',
-                minWidth: '100px'
-              }}
-              onChange={e => setTextInput(e.target.value)}
-              onKeyDown={handleTextInputKeyDown}
-              onBlur={() => { setTextInput(''); setTextInputPos(null); }}
-              placeholder="Enter text..."
-            />
-          )}
+          <div className="canvas-overlay">
+            {textInputPos && (
+              <input
+                type="text"
+                className="text-input"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                onKeyDown={handleTextInputKeyDown}
+                style={{
+                  left: textInputPos.x + 'px',
+                  top: textInputPos.y + 'px',
+                }}
+                autoFocus
+              />
+            )}
+          </div>
         </div>
       </div>
       {/* ================================= */}
